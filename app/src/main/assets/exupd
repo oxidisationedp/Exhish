@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+REPO="oxidisationedp/Exhish"
+API="https://api.github.com/repos/$REPO/releases/latest"
+VERSION_FILE=/etc/exhish/version
+FLAG=/etc/exhish/fs_enabled
+TMP="/tmp/exupd.$$"
+trap 'rm -rf "$TMP"' EXIT
+
+usage() {
+  cat <<'U'
+usage:
+  exupd --checkupdate      look for a new Exhish release on GitHub
+  exupd --downloadupdate   download the new release to your phone
+U
+}
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+fs_state() {
+  if [ "$EXHISH_FS" = 1 ]; then
+    echo on
+  elif [ -f "$FLAG" ]; then
+    echo pending
+  else
+    echo off
+  fi
+}
+
+fetch() {
+  if have curl; then
+    curl -fsSL -H "Accept: application/vnd.github+json" -A exhish "$1"
+  elif have wget; then
+    wget -qO - -U exhish "$1"
+  else
+    return 127
+  fi
+}
+
+save() {
+  if have curl; then
+    curl -fL --progress-bar -A exhish -o "$2" "$1"
+  else
+    wget -U exhish -O "$2" "$1"
+  fi
+}
+
+pick() {
+  printf '%s\n' "$JSON" \
+    | grep -o "\"browser_download_url\"[[:space:]]*:[[:space:]]*\"[^\"]*$1\"" \
+    | head -n1 \
+    | sed 's/.*"\(http[^"]*\)"$/\1/'
+}
+
+split() {
+  local v="$1" whole frac
+  whole=${v%%.*}
+  frac=${v#*.}
+  [ "$frac" = "$v" ] && frac=""
+  whole=${whole//[^0-9]/}
+  frac=${frac//[^0-9]/}
+  printf '%s %s\n' "${whole:-0}" "$frac"
+}
+
+newer() {
+  local aw af bw bf n
+  read -r aw af <<< "$(split "$1")"
+  read -r bw bf <<< "$(split "$2")"
+  n=${#af}
+  [ "${#bf}" -gt "$n" ] && n=${#bf}
+  while [ "${#af}" -lt "$n" ]; do af="${af}0"; done
+  while [ "${#bf}" -lt "$n" ]; do bf="${bf}0"; done
+  if [ "$((10#$aw))" -ne "$((10#$bw))" ]; then
+    [ "$((10#$aw))" -gt "$((10#$bw))" ]
+    return
+  fi
+  [[ "$af" > "$bf" ]]
+}
+
+load() {
+  local rc
+  JSON=$(fetch "$API")
+  rc=$?
+  if [ "$rc" -eq 127 ]; then
+    echo "curl or wget is needed to check for updates."
+    echo "install one with:  cave resolve -x net-misc/curl"
+    return 1
+  fi
+  if [ "$rc" -ne 0 ] || [ -z "$JSON" ]; then
+    echo "could not read the latest release from GitHub."
+    echo "check your connection and try again."
+    return 1
+  fi
+  TAG=$(printf '%s\n' "$JSON" | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -n1 | sed 's/.*"\([^"]*\)"$/\1/')
+  LATEST=$(printf '%s' "$TAG" | sed 's/^[^0-9]*//')
+  INSTALLED=$(head -n1 "$VERSION_FILE" 2>/dev/null)
+  if [ -z "$LATEST" ]; then
+    echo "no release has been published yet."
+    return 1
+  fi
+  if [ -z "$INSTALLED" ]; then
+    echo "could not read the installed version. close Exhish and open it again."
+    return 1
+  fi
+  return 0
+}
+
+do_check() {
+  load || exit 1
+  if ! newer "$LATEST" "$INSTALLED"; then
+    echo "Exhish is up to date, version $INSTALLED."
+    exit 0
+  fi
+  echo "A new version is available: $LATEST (you have $INSTALLED)"
+  echo "It is saved to your phone so you can install it over this app"
+  echo "and keep all of your files."
+  echo
+  case "$(fs_state)" in
+    on)
+      echo "Type exupd --downloadupdate to download it."
+      ;;
+    pending)
+      echo "Phone files are enabled but not active yet."
+      echo "Close Exhish and open it again, then type exupd --downloadupdate"
+      ;;
+    *)
+      echo "Before downloading, enable phone files with:  exnable fs"
+      echo "Then close Exhish and open it again, and type exupd --downloadupdate"
+      ;;
+  esac
+}
+
+do_download() {
+  local apk sum dir name want got
+  case "$(fs_state)" in
+    on) ;;
+    pending)
+      echo "Phone files are enabled but not active yet."
+      echo "Close Exhish and open it again, then run this command again."
+      exit 1
+      ;;
+    *)
+      echo "Please enable fs using exnable fs"
+      echo "Then close Exhish and open it again, and run this command again."
+      exit 1
+      ;;
+  esac
+  load || exit 1
+  if ! newer "$LATEST" "$INSTALLED"; then
+    echo "Exhish is up to date, version $INSTALLED. Nothing to download."
+    exit 0
+  fi
+  apk=$(pick '\.apk')
+  if [ -z "$apk" ]; then
+    echo "release $LATEST has no APK file attached."
+    exit 1
+  fi
+  dir=/sdcard/Download
+  [ -d "$dir" ] || dir=/sdcard
+  if [ ! -w "$dir" ]; then
+    echo "cannot write to $dir"
+    echo "close Exhish, open it again and allow the storage permission."
+    exit 1
+  fi
+  mkdir -p "$TMP"
+  name="Exhish$LATEST.apk"
+  echo "downloading $name"
+  if ! save "$apk" "$TMP/$name"; then
+    echo "download failed. check your connection and try again."
+    exit 1
+  fi
+  sum=$(pick '\.sha256')
+  if [ -n "$sum" ]; then
+    if ! have sha256sum; then
+      echo "sha256sum is missing so the download cannot be checked."
+      exit 1
+    fi
+    if ! save "$sum" "$TMP/sum" >/dev/null 2>&1; then
+      echo "could not download the checksum, the file was not saved."
+      exit 1
+    fi
+    read -r want _ < "$TMP/sum"
+    got=$(sha256sum "$TMP/$name" | { read -r h _; echo "$h"; })
+    if [ -z "$want" ] || [ "$want" != "$got" ]; then
+      echo "the checksum does not match, the file was not saved."
+      exit 1
+    fi
+    echo "checksum verified"
+  else
+    echo "no checksum was published for this release"
+  fi
+  if ! cp "$TMP/$name" "$dir/$name"; then
+    echo "could not save the file to $dir"
+    exit 1
+  fi
+  echo
+  echo "saved to $dir/$name"
+  echo
+  echo "Open your file manager, tap $name and install it over the old app."
+  echo "Do not uninstall Exhish first. Installing over it keeps all your files."
+  echo "Android may ask you to allow installs from your file manager."
+}
+
+case "$1" in
+  --checkupdate) do_check ;;
+  --downloadupdate) do_download ;;
+  --help|-h|"") usage ;;
+  *) usage; exit 1 ;;
+esac

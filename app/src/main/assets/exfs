@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+FLAG=/etc/exhish/fs_enabled
+case "$1" in
+  on)
+    touch "$FLAG"
+    if [ "$EXHISH_FS" = 1 ]; then
+      echo "phone files are already visible at /sdcard"
+    else
+      echo "phone files enabled."
+      echo "close Exhish and open it again. Android will ask for"
+      echo "storage permission, allow it. Then look in /sdcard"
+    fi
+    ;;
+  off)
+    rm -f "$FLAG"
+    echo "phone files disabled. This takes effect after you reopen Exhish."
+    ;;
+  status|"")
+    if [ "$EXHISH_FS" = 1 ]; then echo "phone files: visible at /sdcard"
+    elif [ -f "$FLAG" ]; then echo "phone files: enabled, reopen Exhish to apply"
+    else echo "phone files: off (type: exnable fs)"
+    fi
+    ;;
+  *) echo "usage: exfs on|off|status"; exit 1 ;;
+esac

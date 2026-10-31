@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+MENUS="$HOME/.exhish/menus"
+usage() {
+  cat <<'U'
+usage:
+  exhish --generate settings-menu   create the settings menu
+  exhish --guide                    read the guide
+  exhish --help                     this text
+then start a menu with:  exstart settings_menu
+U
+}
+case "$1" in
+  --generate)
+    case "$2" in
+      settings-menu|settings_menu)
+        mkdir -p "$MENUS"
+        cp /etc/exhish/templates/settings_menu "$MENUS/settings_menu" && chmod +x "$MENUS/settings_menu"
+        echo "settings menu created in $MENUS"
+        echo "start it with:  exstart settings_menu"
+        ;;
+      *) echo "unknown thing to generate: $2"; echo "try: exhish --generate settings-menu"; exit 1 ;;
+    esac
+    ;;
+  --guide)
+    if command -v less >/dev/null 2>&1; then less -R /etc/exhish/GUIDE.txt; else cat /etc/exhish/GUIDE.txt; fi
+    ;;
+  --help|-h|"") usage ;;
+  *) usage; exit 1 ;;
+esac

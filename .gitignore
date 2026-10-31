@@ -1,0 +1,5 @@
+build/
+.gradle/
+local.properties
+.idea/
+app/src/main/jniLibs/*/libexhish.so

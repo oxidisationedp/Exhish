@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+MENUS="$HOME/.exhish/menus"
+name="$1"
+if [ -z "$name" ]; then
+  echo "usage: exstart <menu name>"
+  echo "menus here:"
+  ls "$MENUS" 2>/dev/null | sed 's/^/  /'
+  exit 1
+fi
+shift
+if [ ! -x "$MENUS/$name" ]; then
+  echo "no menu called $name"
+  [ "$name" = settings_menu ] && echo "create it first:  exhish --generate settings-menu"
+  exit 1
+fi
+exec "$MENUS/$name" "$@"

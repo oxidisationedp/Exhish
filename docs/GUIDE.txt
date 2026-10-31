@@ -1,0 +1,187 @@
+EXHISH GUIDE: USING EXHERBO
+
+Exhish is a real Exherbo Linux. Software is managed by Paludis and
+you would use the command 'cave'. However, in Exhish "paludis" is just
+an alias for "cave".
+
+Note: Most of the commands only give you a plan to do. The "-x"
+(--execute) option has to be added to actually do them. They have a
+(x) next to them. You may wish to try them without the "-x" first.
+
+
+1. Get started
+
+cave sync                       # Get latest package lists
+df -h /                         # See how much space you have left
+
+You should sync first before installing/updating.
+
+
+2. Find & Install
+
+cave search nano                # Search for something
+cave show nano                  # See versions, options, licenses
+cave resolve nano               # See what will be installed
+cave resolve -x nano            # Install it (x)
+
+Packages are in the format category/name, e.g. app-editors/nano.
+If there is only one package with that name, you can ignore the category.
+Try searching for these ones (names can change).
+app-editors/nano dev-scm/git net-misc/curl sys-process/htop
+
+Exherbo will compile all of the software from source so large packages
+will take a while to build on your phone. Plug it in and let it build.
+
+
+3. Update everything
+
+cave sync
+cave resolve -c world           # See full update plan
+cave resolve -c world -x        # Do it (x)
+
+"world" is any packages you have installed. "-c" (--complete) will also
+install dependencies for those packages. After a large update you may
+want to run:
+
+cave fix-linkage -x             # Rebuild any packages that lost libraries (x)
+
+
+4. Uninstall
+
+cave uninstall -x nano          # Uninstall one package (x)
+cave purge -x                   # Remove any packages you don't need (x)
+
+
+5. What do I have?
+
+cave info                       # Get overview
+cave contents app-editors/nano  # See files a package adds
+cave owner /usr/bin/nano        # See which package owns that file
+cave show -f app-editors/nano   # See an installed package
+
+"cave help" will show you all commands. "cave help resolve" will tell you
+about the options for the command. "man cave" will give you detailed info.
+
+
+6. Build failed
+
+cave resume                     # Continue building (x)
+ls /var/log/paludis             # Build logs are here
+
+Open the latest log and look from the bottom. This is where the error
+will usually be. Often it will fail due to not having enough space/memory.
+Free some up and try again.
+
+Sometimes it will stop and ask you to agree to a license, toggle an option
+or unmask a package. It will tell you the exact line to add. Add it to the
+relevant file in /etc/paludis (see below). Then run the same command.
+
+
+7. Configuration Files
+
+All config files are in /etc/paludis. These can be individual files or
+a directory with .conf files.
+
+repositories/                   # Where packages are sourced from, generally leave this
+options.conf                    # Options for packages (e.g USE flags)
+suggestions.conf                # Agree/Ignore suggested extra packages
+licences.conf                   # Licenses you're happy with
+keywords.conf                   # Architectures/testing versions to allow
+package_mask.conf               # Mask a package/version
+package_unmask.conf             # Allow a masked package
+bashrc                          # Build options (MAKEOPTS)
+
+Examples:
+
+licences.conf                   */* *
+options.conf                    app-editors/vim -python
+bashrc                          MAKEOPTS="-j2"
+
+The higher the number of jobs (-jN), the quicker it will build but uses
+more memory. If you keep getting killed during builds on your phone
+reduce the number.
+
+
+8. Basic shell commands
+
+ls -la                          # List files
+cd /path                        # Change directory
+pwd                             # Show current directory
+cp mv rm                        # Copy/move/delete
+cat file                        # View file
+less file                       # Scroll through
+vim file                        # Edit file
+du -sh                          # See what is using space
+top                             # See what is running
+Ctrl+C                          # Stop a command
+
+To press Ctrl+C, press the key row at the bottom. Press CTRL and then c.
+To exit insert mode in vim press ESC.
+
+
+9. Exhish Options
+
+exhish --generate settings-menu # Generate settings menu (one time)
+exstart settings_menu           # Themes, fonts, tweaks, prompt etc
+exnable fs                      # See files on phone (restart app)
+exfs off                        # Hide files
+exwake --wakeup                 # Keep Exhish running in the background
+exwake --gotosleep              # Stop that
+exupd --checkupdate             Check GitHub for a new release
+exupd --downloadupdate          Download it to /sdcard/Download
+exhish --guide                  # View this guide
+
+When you enable the files on your phone they will be visible in /sdcard
+after closing and reopening.
+
+exupd --checkupdate looks for a new release on GitHub. Downloading needs
+phone files, so run exnable fs first and reopen Exhish. Then
+exupd --downloadupdate saves the new APK in /sdcard/Download. Open it from
+your file manager and install it over the old app. Do not uninstall Exhish
+first, because uninstalling deletes everything inside it.
+
+exwake --wakeup keeps Exhish alive while the app is hidden and shows a
+notification. Press Back to hide the app. If Android still stops it, set
+the battery usage for Exhish to unrestricted.
+
+Tweaks (option 7 in the settings menu) change how the terminal behaves:
+scroll speed and direction, scrollback size, cursor shape and blink, keep
+screen on, the extra key row, key repeat speed, swipe up popups, volume
+keys as Ctrl and Esc, back button as Esc, bell, keyboard behavior and
+screen rotation. Anything marked (restart) applies after you close and
+reopen Exhish.
+
+
+10. More Info
+
+Exherbo Site: https://exherbo.org
+The docs go into much more detail about cave.
+"cave help" and "man cave" can be used offline.
+
+Note: The cave examples are from general Exherbo use and haven't been
+tested in Exhish. If you get an error when using an option, run
+"cave help <command>" to see what options your version allows.
+
+
+11. Credits
+
+We would like to thank:
+
+Termux for providing us with the terminal-view and terminal-emulator
+libraries to allow us to have a terminal interface and keyboard input.
+
+PRoot which we used to allow us to have Exhish. This means that we can
+run Exherbo on your phone without needing root.
+
+BusyBox which we used to extract and set up the Exherbo system.
+
+Exherbo: This is the Linux system you will be using. This includes
+Paludis and cave.
+
+
+12. License
+
+Exhish is free and open source. It is licensed under the MIT license
+provided by Oxidisation EDP. This means that you can use, edit, publish
+and use parts of this in your own projects. You must keep the copyright
+notice in the LICENSE file.
