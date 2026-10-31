@@ -1,0 +1,68 @@
+plugins {
+    id 'com.android.application'
+}
+
+def prebuilt = file('src/main/jniLibs/arm64-v8a/libexhish.so').exists()
+
+android {
+    namespace 'com.exhish'
+    compileSdk 34
+    if (!prebuilt) {
+        ndkVersion '26.1.10909125'
+    }
+
+    defaultConfig {
+        applicationId 'com.exhish'
+        minSdk 24
+        targetSdk 28
+        versionCode 1
+        versionName '0.01'
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+        }
+        if (!prebuilt) {
+            externalNativeBuild {
+                cmake {
+                    cFlags '-O2'
+                }
+            }
+        }
+    }
+
+    if (!prebuilt) {
+        externalNativeBuild {
+            cmake {
+                path 'src/main/cpp/CMakeLists.txt'
+                version '3.22.1'
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            debuggable true
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = 'Exhish.apk'
+        }
+    }
+}
+
+dependencies {
+    implementation 'com.termux.termux-app:terminal-view:0.118.0'
+    implementation 'com.termux.termux-app:terminal-emulator:0.118.0'
+}

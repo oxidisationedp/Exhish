@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+F="$HOME/.exhish/stayawake"
+mkdir -p "$HOME/.exhish"
+usage() {
+  cat <<'U'
+usage:
+  exwake --wakeup        keep Exhish running in the background
+  exwake --gotosleep     let it sleep again
+  exwake --status        show whether it is on
+U
+}
+case "$1" in
+  --wakeup)
+    touch "$F"
+    echo "Exhish will keep running in the background."
+    echo "A notification shows while this is on. Press Back to hide the app."
+    echo "Turn it off with:  exwake --gotosleep"
+    ;;
+  --gotosleep)
+    rm -f "$F"
+    echo "Exhish can sleep again."
+    ;;
+  --status)
+    if [ -f "$F" ]; then echo "on"; else echo "off"; fi
+    ;;
+  --help|-h|"") usage ;;
+  *) usage; exit 1 ;;
+esac

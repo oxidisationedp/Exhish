@@ -1,0 +1,302 @@
+#!/usr/bin/env bash
+
+CFG="$HOME/.exhish/config"
+DIR="$HOME/.exhish"
+mkdir -p "$DIR/fonts" "$DIR/menus"
+touch "$CFG"
+. /etc/exhish/apply.sh
+
+B=$'\033[1m'; D=$'\033[2m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[0m'
+
+setcfg() {
+  grep -v "^$1=" "$CFG" > "$CFG.tmp"
+  printf '%s=%q\n' "$1" "$2" >> "$CFG.tmp"
+  mv "$CFG.tmp" "$CFG"
+}
+delcfg() {
+  grep -v "^$1=" "$CFG" > "$CFG.tmp"
+  mv "$CFG.tmp" "$CFG"
+}
+reload() { exh_load; }
+ask() { read -r -p "$1" REPLY || exit 0; }
+pause() { read -r -p "${D}press enter${R}" _ || exit 0; }
+hex_ok() { [[ "$1" =~ ^#?[0-9a-fA-F]{6}$ ]]; }
+hexfix() { case "$1" in \#*) echo "$1" ;; *) echo "#$1" ;; esac; }
+head_() { clear; echo "${B}$1${R}"; echo; }
+
+fontsize_now() { cat "$DIR/fontsize" 2>/dev/null || echo 14; }
+
+menu_theme() {
+  while true; do
+    reload
+    head_ "Background theme   now: ${EXH_THEME:-default}"
+    i=1; for t in $exh_themes; do printf '  %d) %s\n' "$i" "$t"; i=$((i+1)); done
+    echo
+    echo "  b) custom background color   ${D}${EXH_BG:-not set}${R}"
+    echo "  t) custom text color         ${D}${EXH_FG:-not set}${R}"
+    echo "  c) custom cursor color       ${D}${EXH_CUR:-not set}${R}"
+    echo "  x) clear custom colors"
+    echo "  0) back"
+    echo
+    ask "> "
+    case "$REPLY" in
+      0|"") return ;;
+      b|t|c)
+        key=EXH_BG; [ "$REPLY" = t ] && key=EXH_FG; [ "$REPLY" = c ] && key=EXH_CUR
+        ask "hex color like #1e1e2e (empty to cancel): "
+        if hex_ok "$REPLY"; then setcfg "$key" "$(hexfix "$REPLY")"; else echo "not a color"; sleep 1; fi ;;
+      x) delcfg EXH_BG; delcfg EXH_FG; delcfg EXH_CUR ;;
+      [0-9]*)
+        i=1; for t in $exh_themes; do
+          if [ "$i" = "$REPLY" ]; then setcfg EXH_THEME "$t"; fi
+          i=$((i+1))
+        done ;;
+    esac
+  done
+}
+
+menu_font() {
+  while true; do
+    reload
+    head_ "Font   now: ${EXH_FONT:-default}"
+    echo "  0) default"
+    n=0; FILES=()
+    for f in "$DIR"/fonts/*.ttf "$DIR"/fonts/*.otf /android-fonts/*.ttf; do
+      [ -f "$f" ] || continue
+      n=$((n+1)); FILES+=("$f")
+      printf '  %d) %s\n' "$n" "$(basename "$f")"
+    done
+    echo "  p) use a font file from a path"
+    echo "  b) back"
+    echo
+    echo "${D}monospace fonts look best. Put your own .ttf in ~/.exhish/fonts${R}"
+    ask "> "
+    case "$REPLY" in
+      b|B|"") return ;;
+      0) rm -f "$DIR/font.ttf"; delcfg EXH_FONT; echo "default font"; sleep 1 ;;
+      p) ask "path to .ttf or .otf: "
+         if [ -f "$REPLY" ]; then cp "$REPLY" "$DIR/font.ttf" && setcfg EXH_FONT "$(basename "$REPLY")"; echo "font applied"; else echo "file not found"; fi
+         sleep 1 ;;
+      [0-9]*)
+         if [ "$REPLY" -ge 1 ] && [ "$REPLY" -le "$n" ]; then
+           f="${FILES[$((REPLY-1))]}"
+           cp "$f" "$DIR/font.ttf" && setcfg EXH_FONT "$(basename "$f")"
+           echo "font applied"; sleep 1
+         fi ;;
+    esac
+  done
+}
+
+menu_size() {
+  head_ "Font size   now: $(fontsize_now)"
+  ask "new size from 3 to 40 (empty to cancel): "
+  if [[ "$REPLY" =~ ^[0-9]+$ ]] && [ "$REPLY" -ge 3 ] && [ "$REPLY" -le 40 ]; then
+    echo "$REPLY" > "$DIR/fontsize"; echo "size set"
+  elif [ -n "$REPLY" ]; then echo "needs a number from 3 to 40"; fi
+  sleep 1
+}
+
+menu_prompt() {
+  while true; do
+    reload
+    head_ "Prompt   name: ${HOSTNAME}"
+    echo "  1) change the name shown in the prompt"
+    echo "  2) change the name color"
+    echo "  0) back"
+    echo
+    ask "> "
+    case "$REPLY" in
+      0|"") return ;;
+      1) ask "new name (letters, numbers, - and _): "
+         if [[ "$REPLY" =~ ^[A-Za-z0-9_-]+$ ]]; then echo "$REPLY" > /etc/hostname; else echo "not a valid name"; sleep 1; fi ;;
+      2) echo "  1 red  2 green  3 yellow  4 blue  5 magenta  6 cyan  7 white"
+         ask "color: "
+         if [[ "$REPLY" =~ ^[1-7]$ ]]; then setcfg EXH_HC "3$REPLY"; fi ;;
+    esac
+  done
+}
+
+menu_motd() {
+  while true; do
+    reload
+    head_ "Welcome message   now: ${EXH_MOTD:-on}"
+    echo "  1) turn on"
+    echo "  2) turn off"
+    echo "  3) edit the text"
+    echo "  0) back"
+    echo
+    ask "> "
+    case "$REPLY" in
+      0|"") return ;;
+      1) delcfg EXH_MOTD ;;
+      2) setcfg EXH_MOTD off ;;
+      3) ed=$(command -v nano || command -v vim || command -v vi)
+         if [ -n "$ed" ]; then "$ed" /etc/exhish/motd; else echo "no editor installed"; sleep 1; fi ;;
+    esac
+  done
+}
+
+menu_fs() {
+  while true; do
+    head_ "Phone files"
+    exfs status
+    echo
+    echo "  1) turn on   (type the same as: exnable fs)"
+    echo "  2) turn off"
+    echo "  0) back"
+    echo
+    ask "> "
+    case "$REPLY" in
+      0|"") return ;;
+      1) exfs on; pause ;;
+      2) exfs off; pause ;;
+    esac
+  done
+}
+
+TW="$DIR/tweaks"
+
+tget() {
+  local v
+  v=$(grep "^$1=" "$TW" 2>/dev/null | tail -n1 | cut -d= -f2-)
+  echo "${v:-$2}"
+}
+tset() {
+  touch "$TW"
+  grep -v "^$1=" "$TW" > "$TW.tmp"
+  echo "$1=$2" >> "$TW.tmp"
+  mv "$TW.tmp" "$TW"
+}
+
+TW_KEYS=(scroll_speed scroll_invert scrollback cursor_style cursor_blink cursor_blink_rate keep_screen_on extra_keys zoom_row key_haptic key_repeat_delay key_repeat_rate popups volume_keys back_is_esc bell show_keyboard tap_keyboard orientation)
+TW_NAME=("Scroll speed in percent" "Reverse scroll direction" "Scrollback lines" "Cursor shape" "Cursor blink" "Cursor blink speed in ms" "Keep screen on" "Extra key row" "Zoom row (A- A+)" "Key vibration" "Key repeat delay in ms" "Key repeat speed in ms" "Swipe up popups" "Volume keys (down=Ctrl up=Esc)" "Back button sends Esc" "Bell" "Show keyboard on start" "Tap opens keyboard" "Screen rotation")
+TW_TYPE=("n:10:500:100" "b:0" "n:100:50000:2000" "e:block,underline,bar:block" "b:0" "n:100:2000:500" "b:1" "e:auto,always,never:auto" "b:1" "b:1" "n:100:1500:400" "n:20:500:80" "b:1" "b:0" "b:0" "e:off,haptic:off" "b:1" "b:1" "e:auto,portrait,landscape:auto")
+TW_RESTART=(0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
+
+tdefault() {
+  local t="${TW_TYPE[$1]}"
+  case "${t%%:*}" in
+    n) echo "${t##*:}" ;;
+    b) echo "${t#b:}" ;;
+    e) echo "${t##*:}" ;;
+  esac
+}
+
+tshow() {
+  local i=$1 v t
+  t="${TW_TYPE[$i]}"
+  v=$(tget "${TW_KEYS[$i]}" "$(tdefault "$i")")
+  if [ "${t%%:*}" = b ]; then
+    if [ "$v" = 1 ]; then echo on; else echo off; fi
+  else
+    echo "$v"
+  fi
+}
+
+tedit() {
+  local i=$1 k t kind v cur opts o n=0
+  k="${TW_KEYS[$i]}"; t="${TW_TYPE[$i]}"; kind="${t%%:*}"
+  cur=$(tget "$k" "$(tdefault "$i")")
+  case "$kind" in
+    b) if [ "$cur" = 1 ]; then tset "$k" 0; else tset "$k" 1; fi ;;
+    n)
+      IFS=: read -r _ lo hi _ <<< "$t"
+      ask "${TW_NAME[$i]} ($lo to $hi), now $cur: "
+      if [[ "$REPLY" =~ ^[0-9]+$ ]] && [ "$REPLY" -ge "$lo" ] && [ "$REPLY" -le "$hi" ]; then tset "$k" "$REPLY"
+      elif [ -n "$REPLY" ]; then echo "needs a number from $lo to $hi"; sleep 1; fi ;;
+    e)
+      IFS=: read -r _ opts _ <<< "$t"
+      echo
+      for o in ${opts//,/ }; do n=$((n+1)); echo "  $n) $o"; done
+      ask "choose, now $cur: "
+      n=0
+      for o in ${opts//,/ }; do n=$((n+1)); if [ "$REPLY" = "$n" ]; then tset "$k" "$o"; fi; done ;;
+  esac
+}
+
+menu_tweaks() {
+  local i
+  while true; do
+    head_ "Tweaks   how the terminal behaves"
+    for i in "${!TW_KEYS[@]}"; do
+      mark=""; [ "${TW_RESTART[$i]}" = 1 ] && mark=" (restart)"
+      printf '  %2d) %-34s %s%s%s%s\n' "$((i+1))" "${TW_NAME[$i]}" "$D" "$(tshow "$i")" "$mark" "$R"
+    done
+    echo
+    echo "   r) reset tweaks"
+    echo "   0) back"
+    echo
+    ask "> "
+    case "$REPLY" in
+      0|"") return ;;
+      r) rm -f "$TW"; echo "tweaks reset"; sleep 1 ;;
+      [0-9]*)
+        if [ "$REPLY" -ge 1 ] && [ "$REPLY" -le "${#TW_KEYS[@]}" ]; then tedit "$((REPLY-1))"; fi ;;
+    esac
+  done
+}
+
+menu_awake() {
+  head_ "Stay awake in the background"
+  echo "now: $(exwake --status)"
+  echo
+  echo "  1) turn on   (same as: exwake --wakeup)"
+  echo "  2) turn off  (same as: exwake --gotosleep)"
+  echo "  0) back"
+  echo
+  ask "> "
+  case "$REPLY" in
+    1) exwake; pause ;;
+    2) exwake --gotosleep; pause ;;
+  esac
+}
+
+menu_credits() {
+  head_ "Credits and license"
+  sed -n '/^11\. Credits/,$p' /etc/exhish/GUIDE.txt | sed 1d
+  pause
+}
+
+menu_reset() {
+  head_ "Reset customization"
+  ask "put colors, font, size, prompt and welcome message back to default? (y/N) "
+  if [ "$REPLY" = y ] || [ "$REPLY" = Y ]; then
+    : > "$CFG"
+    rm -f "$TW" "$DIR/stayawake"
+    rm -f "$DIR/font.ttf"
+    echo 14 > "$DIR/fontsize"
+    echo "done"
+  fi
+  sleep 1
+}
+
+while true; do
+  reload
+  head_ "Exhish settings"
+  printf '  1) Background theme   %s%s%s\n' "$D" "${EXH_THEME:-default}" "$R"
+  printf '  2) Font               %s%s%s\n' "$D" "${EXH_FONT:-default}" "$R"
+  printf '  3) Font size          %s%s%s\n' "$D" "$(fontsize_now)" "$R"
+  printf '  4) Prompt             %s%s%s\n' "$D" "$HOSTNAME" "$R"
+  printf '  5) Welcome message    %s%s%s\n' "$D" "${EXH_MOTD:-on}" "$R"
+  printf '  6) Phone files        %s%s%s\n' "$D" "$(exfs status | cut -d: -f2- | cut -c2-)" "$R"
+  printf '  7) Tweaks             %sterminal behavior%s\n' "$D" "$R"
+  printf '  8) Stay awake         %s%s%s\n' "$D" "$(exwake --status)" "$R"
+  echo   "  9) Credits and license"
+  echo   "  r) Reset everything"
+  echo   "  0) Exit"
+  echo
+  ask "> "
+  case "$REPLY" in
+    1) menu_theme ;;
+    2) menu_font ;;
+    3) menu_size ;;
+    4) menu_prompt ;;
+    5) menu_motd ;;
+    6) menu_fs ;;
+    7) menu_tweaks ;;
+    8) menu_awake ;;
+    9) menu_credits ;;
+    r) menu_reset ;;
+    0|q|"") clear; exit 0 ;;
+  esac
+done

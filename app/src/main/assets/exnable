@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+case "$1" in
+  fs) exec exfs on ;;
+  *) echo "usage: exnable fs"; exit 1 ;;
+esac
