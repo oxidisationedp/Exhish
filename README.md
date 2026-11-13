@@ -5,7 +5,7 @@ Exherbo shell for Android (Termux, proot + busybox).
 ## Native helper libraries
 
 The folder `app/src/main/jniLibs/<abi>/` must contain the following files: `libproot.so`,
-`libproot_loader.so` and `libbusybox.so`. These are precompiled binary files. The app will function,
+`libproot_loader.so` and `libbusybox.so`. These are uncompiled files. The app will function,
 but display an error saying "libproot.so missing". These files should be committed or present before building.
 
 ## Building
@@ -16,6 +16,17 @@ you'll need to add machine specific information such as `sdk.dir`, `ndk.dir`, `c
 This information should not go into the `gradle.properties` file (tracked by git) in this repository.
 
 There is no gradle wrapper in this repository. Run the command `gradle wrapper --gradle-version 8.5` to generate the `gradlew`.
+compile the needed libraries:
+
+```sh
+sh scripts/build.sh
+```
+
+Then build the APK:
+
+```sh
+gradle assembleDebug
+```
 
 ## Credits
 
@@ -38,3 +49,4 @@ This means that you can use, edit, publish and use parts of this in your own pro
 You must keep the copyright notice in the LICENSE file.
 
 Exhish includes other software with their own licenses (Termux, PRoot, BusyBox). See: THIRD_PARTY.md.
+
