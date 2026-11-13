@@ -15,8 +15,8 @@ android {
         applicationId 'com.exhish'
         minSdk 24
         targetSdk 28
-        versionCode 1
-        versionName '0.01'
+        versionCode 2
+        versionName '0.02'
         ndk {
             abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
         }

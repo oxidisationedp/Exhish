@@ -3,3 +3,7 @@ build/
 local.properties
 .idea/
 app/src/main/jniLibs/*/libexhish.so
+native/
+app/src/main/jniLibs/*/libproot.so
+app/src/main/jniLibs/*/libproot_loader.so
+app/src/main/jniLibs/*/libbusybox.so
